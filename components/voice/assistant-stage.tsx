@@ -72,12 +72,12 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
     user.email?.split("@")[0] ??
     "";
 
-  const handleSendMessage = (text?: string) => {
+  const handleSendMessage = (text?: string, metadata?: Record<string, any>) => {
     const messageContent = text ?? inputText;
-    if (!messageContent.trim()) return;
+    if (!messageContent.trim() && !metadata?.attachment) return;
 
     setInputText("");
-    sendMessage(messageContent);
+    sendMessage(messageContent, metadata);
   };
 
   const handleOrbClick = () => {
