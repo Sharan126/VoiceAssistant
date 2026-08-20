@@ -49,6 +49,9 @@ export function SettingsManager({ userId, onSettingsUpdated }: SettingsManagerPr
       toast.error(`Could not load preferences: ${error}`);
     } else if (data) {
       setSettings(data);
+      if (data.theme) {
+        applyTheme(data.theme as ThemeOption);
+      }
     }
     setIsLoading(false);
   }, [userId]);
@@ -94,15 +97,23 @@ export function SettingsManager({ userId, onSettingsUpdated }: SettingsManagerPr
   };
 
   const applyTheme = (theme: ThemeOption) => {
+    if (typeof window === "undefined") return;
     const root = document.documentElement;
     if (theme === "dark") {
+      root.classList.remove("light");
       root.classList.add("dark");
     } else if (theme === "light") {
       root.classList.remove("dark");
+      root.classList.add("light");
     } else {
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      if (prefersDark) root.classList.add("dark");
-      else root.classList.remove("dark");
+      if (prefersDark) {
+        root.classList.remove("light");
+        root.classList.add("dark");
+      } else {
+        root.classList.remove("dark");
+        root.classList.add("light");
+      }
     }
   };
 
@@ -256,17 +267,43 @@ export function SettingsManager({ userId, onSettingsUpdated }: SettingsManagerPr
               </div>
             </div>
 
-            <div className="flex items-center justify-between p-3 rounded-xl border border-border/60 bg-background/40">
+            <div className="flex items-center justify-between p-3.5 rounded-xl border border-border/60 bg-background/40">
               <div className="space-y-0.5">
-                <Label className="text-xs font-semibold text-foreground">Auto-Play Audio</Label>
-                <p className="text-[11px] text-muted-foreground">Automatically speak assistant replies upon completion.</p>
+                <div className="flex items-center gap-2">
+                  <Label className="text-xs font-semibold text-foreground">Voice Audio Response</Label>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                    settings.auto_play
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                      : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                  }`}>
+                    {settings.auto_play ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Allow Aura to speak responses aloud via text-to-speech. Switch to Inactive for text-only replies.
+                </p>
               </div>
-              <input
-                type="checkbox"
-                checked={settings.auto_play}
-                onChange={(e) => handleUpdate({ auto_play: e.target.checked })}
-                className="h-4 w-4 rounded accent-primary cursor-pointer"
-              />
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={settings.auto_play ? "gradient" : "outline"}
+                  onClick={() => handleUpdate({ auto_play: true })}
+                  className="text-xs h-7 px-3"
+                >
+                  Active
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={!settings.auto_play ? "secondary" : "outline"}
+                  onClick={() => handleUpdate({ auto_play: false })}
+                  className="text-xs h-7 px-3"
+                >
+                  Inactive
+                </Button>
+              </div>
             </div>
 
             <Button

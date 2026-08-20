@@ -10,13 +10,13 @@ export function Footer() {
         </div>
 
         <div className="flex items-center space-x-6 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer">
-            <Shield className="h-3.5 w-3.5" />
-            Zero Client Secret Exposure
+          <span className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+            <Shield className="h-3.5 w-3.5 text-indigo-400" />
+            Privacy & Security Protected
           </span>
-          <span className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer">
-            <Sparkles className="h-3.5 w-3.5" />
-            Supabase RLS Protected
+          <span className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+            <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+            Natural AI Voice Assistant
           </span>
         </div>
       </div>

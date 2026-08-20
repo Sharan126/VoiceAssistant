@@ -33,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`dark ${inter.variable}`}>
+    <html lang="en" className={`dark ${inter.variable}`} suppressHydrationWarning>
       <body className="font-sans antialiased flex flex-col min-h-screen bg-background text-foreground">
         {children}
         <Toaster />

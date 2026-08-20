@@ -3,7 +3,41 @@
 @tailwind utilities;
 
 @layer base {
+  /* Default Light Mode CSS Variables */
   :root {
+    --background: 210 40% 98%;
+    --foreground: 224 71% 4%;
+
+    --muted: 220 14.3% 93%;
+    --muted-foreground: 220 8.9% 40%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 224 71% 4%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 224 71% 4%;
+
+    --border: 220 13% 85%;
+    --input: 220 13% 85%;
+
+    --primary: 238 82% 60%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 220 14.3% 93%;
+    --secondary-foreground: 220.9 39.3% 11%;
+
+    --accent: 220 14.3% 90%;
+    --accent-foreground: 220.9 39.3% 11%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --ring: 238 82% 60%;
+    --radius: 0.5rem;
+  }
+
+  /* Dark Mode CSS Variables */
+  .dark {
     --background: 224 71% 4%;
     --foreground: 213 31% 91%;
 
@@ -32,7 +66,6 @@
     --destructive-foreground: 210 40% 98%;
 
     --ring: 238 82% 67%;
-    --radius: 0.5rem;
   }
 }
 
@@ -41,7 +74,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased selection:bg-indigo-500/30 selection:text-indigo-200 min-h-screen flex flex-col overflow-x-hidden;
+    @apply bg-background text-foreground antialiased selection:bg-indigo-500/30 selection:text-indigo-200 min-h-screen flex flex-col overflow-x-hidden transition-colors duration-200;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
@@ -65,10 +98,24 @@
   background: rgba(255, 255, 255, 0.22);
 }
 
+.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.35);
+}
+
 /* Subtle dot grid pattern */
 .bg-grid-pattern {
   background-size: 40px 40px;
   background-image: 
     linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+}
+
+.light .bg-grid-pattern {
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.04) 1px, transparent 1px);
 }

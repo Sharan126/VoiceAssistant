@@ -16,7 +16,7 @@ import { DatabaseTester } from "@/components/dashboard/database-tester";
 import { useVoicePipeline } from "@/hooks/use-voice-pipeline";
 import { getTranslations } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
-import { Database, Settings, X, Plus, Volume2, VolumeX, Brain } from "lucide-react";
+import { Database, Settings, X, Plus, Volume2, VolumeX, Brain, Square } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/types/database.types";
 import type { VoiceState } from "@/types/voice.types";
@@ -177,21 +177,22 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
                   size="sm"
                   variant="ghost"
                   onClick={() => setAutoPlay(!autoPlay)}
-                  className={`h-7 px-2.5 text-xs gap-1.5 rounded-lg border border-border/40 ${
+                  title={autoPlay ? "Switch Voice Output to Inactive" : "Switch Voice Output to Active"}
+                  className={`h-7 px-3 text-xs gap-1.5 rounded-lg border transition-all ${
                     autoPlay
-                      ? "text-emerald-400 bg-emerald-500/10"
-                      : "text-muted-foreground bg-card/40"
+                      ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20"
+                      : "text-amber-400 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20"
                   }`}
                 >
-                  {autoPlay ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
-                  <span>{t.actions.autoPlay}: {autoPlay ? "ON" : "OFF"}</span>
+                  {autoPlay ? <Volume2 className="h-3.5 w-3.5 text-emerald-400" /> : <VolumeX className="h-3.5 w-3.5 text-amber-400" />}
+                  <span className="font-medium">{autoPlay ? t.actions.voiceActive : t.actions.voiceInactive}</span>
                 </Button>
 
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => setActiveModal("memories")}
-                  className="h-7 px-2.5 text-xs gap-1.5 rounded-lg border border-border/40 text-purple-400 bg-purple-500/10 hover:bg-purple-500/20"
+                  className="h-7 px-2.5 text-xs gap-1.5 rounded-lg border border-purple-500/30 text-purple-400 bg-purple-500/10 hover:bg-purple-500/20"
                 >
                   <Brain className="h-3 w-3" />
                   <span>{t.actions.memoryHub}</span>
@@ -221,6 +222,7 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
                 onChange={setInputText}
                 onSend={handleSendMessage}
                 onToggleMic={handleOrbClick}
+                onStopSpeaking={stopTTS}
                 voiceState={currentVoiceState}
                 disabled={isStreaming}
               />
@@ -264,7 +266,7 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
                     {interimTranscript
                       ? `"${interimTranscript}"`
                       : currentVoiceState === "speaking"
-                      ? "Assistant speaking (Tap mic to interrupt)"
+                      ? "Assistant speaking"
                       : currentVoiceState === "tool_execution"
                       ? activeTool ? `Executing ${activeTool}...` : "Checking tools..."
                       : currentVoiceState.replace("_", " ")}
@@ -273,6 +275,19 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
               </div>
 
               <div className="flex items-center gap-2">
+                {currentVoiceState === "speaking" && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={stopTTS}
+                    className="h-8 px-3 text-xs gap-1.5 font-bold shadow bg-red-600 hover:bg-red-700 text-white rounded-lg transition-transform active:scale-95"
+                    aria-label="Stop speaking"
+                  >
+                    <Square className="h-3 w-3 fill-current" />
+                    <span>Stop speaking</span>
+                  </Button>
+                )}
+
                 <Button
                   size="sm"
                   variant="ghost"
@@ -288,15 +303,16 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
                   size="sm"
                   variant="ghost"
                   onClick={() => setAutoPlay(!autoPlay)}
-                  className={`h-8 px-2 text-xs gap-1.5 border border-border/40 ${
+                  title={autoPlay ? "Switch Voice Output to Inactive" : "Switch Voice Output to Active"}
+                  className={`h-8 px-2.5 text-xs gap-1.5 border transition-all ${
                     autoPlay
-                      ? "text-emerald-400 bg-emerald-500/10"
-                      : "text-muted-foreground"
+                      ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20"
+                      : "text-amber-400 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20"
                   }`}
-                  aria-label="Toggle auto-play"
+                  aria-label="Toggle voice active state"
                 >
-                  {autoPlay ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5" />}
-                  <span className="hidden sm:inline">{t.actions.autoPlay}</span>
+                  {autoPlay ? <Volume2 className="h-3.5 w-3.5 text-emerald-400" /> : <VolumeX className="h-3.5 w-3.5 text-amber-400" />}
+                  <span className="hidden sm:inline font-medium">{autoPlay ? t.actions.voiceActive : t.actions.voiceInactive}</span>
                 </Button>
 
                 <Button
@@ -332,6 +348,7 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
                 onChange={setInputText}
                 onSend={handleSendMessage}
                 onToggleMic={handleOrbClick}
+                onStopSpeaking={stopTTS}
                 voiceState={currentVoiceState}
                 disabled={isStreaming}
               />

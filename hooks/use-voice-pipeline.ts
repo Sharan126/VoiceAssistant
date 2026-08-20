@@ -79,11 +79,30 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
     null
   );
 
-  // Synchronize settings from database
+  // Synchronize settings & theme from database
   useEffect(() => {
     settingsService.getUserSettings(userId).then(({ data }) => {
       if (data) {
         setUserSettings(data);
+        if (data.theme && typeof window !== "undefined") {
+          const root = document.documentElement;
+          if (data.theme === "light") {
+            root.classList.remove("dark");
+            root.classList.add("light");
+          } else if (data.theme === "dark") {
+            root.classList.remove("light");
+            root.classList.add("dark");
+          } else {
+            const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            if (prefersDark) {
+              root.classList.remove("light");
+              root.classList.add("dark");
+            } else {
+              root.classList.remove("dark");
+              root.classList.add("light");
+            }
+          }
+        }
       }
     });
   }, [userId]);
@@ -246,6 +265,14 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
     }
   }, [pipelineState.lastQuery, handleSendMessage, toggleMicrophone]);
 
+  /**
+   * Explicitly stop TTS and reset pipeline state back to idle
+   */
+  const handleStopTTS = useCallback(() => {
+    stopTTS();
+    dispatch({ type: "SET_STATE", state: "idle" });
+  }, [stopTTS]);
+
   return {
     voiceState: pipelineState.voiceState,
     activeTool: pipelineState.activeTool,
@@ -264,7 +291,7 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
     toggleMicrophone,
     sendMessage: handleSendMessage,
     stopListening: rawStopListening,
-    stopTTS,
+    stopTTS: handleStopTTS,
     interruptTTS,
     stopGeneration: cancelAIStream,
     loadConversation,

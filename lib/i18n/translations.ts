@@ -30,6 +30,9 @@ export interface TranslationDictionary {
   actions: {
     newChat: string;
     autoPlay: string;
+    voiceActive: string;
+    voiceInactive: string;
+    voiceLabel: string;
     preferences: string;
     memoryHub: string;
     stopGenerating: string;
@@ -69,7 +72,10 @@ export const TRANSLATIONS: Record<string, TranslationDictionary> = {
     },
     actions: {
       newChat: "New Chat",
-      autoPlay: "Auto-play",
+      autoPlay: "Voice Output",
+      voiceActive: "Voice: Active",
+      voiceInactive: "Voice: Inactive",
+      voiceLabel: "Voice Response Mode",
       preferences: "Preferences",
       memoryHub: "Memory Hub",
       stopGenerating: "Stop generating",
@@ -108,7 +114,10 @@ export const TRANSLATIONS: Record<string, TranslationDictionary> = {
     },
     actions: {
       newChat: "ಹೊಸ ಸಂಭಾಷಣೆ",
-      autoPlay: "ಸ್ವಯಂ ಪ್ಲೇ",
+      autoPlay: "ಧ್ವನಿ ಔಟ್‌ಪುಟ್",
+      voiceActive: "ಧ್ವನಿ: ಸಕ್ರಿಯ",
+      voiceInactive: "ಧ್ವನಿ: ನಿಷ್ಕ್ರಿಯ",
+      voiceLabel: "ಧ್ವನಿ ಪ್ರತಿಕ್ರಿಯೆ ರೂಪ",
       preferences: "ಆದ್ಯತೆಗಳು",
       memoryHub: "ನೆನಪಿನ ಕೇಂದ್ರ",
       stopGenerating: "ನಿಲ್ಲಿಸಿ",
@@ -147,7 +156,10 @@ export const TRANSLATIONS: Record<string, TranslationDictionary> = {
     },
     actions: {
       newChat: "नया चैट",
-      autoPlay: "ऑटो-प्ले",
+      autoPlay: "वॉइस आउटपुट",
+      voiceActive: "आवाज़: सक्रिय",
+      voiceInactive: "आवाज़: निष्क्रिय",
+      voiceLabel: "आवाज़ प्रतिक्रिया मोड",
       preferences: "प्राथमिकताएं",
       memoryHub: "मेमोरी हब",
       stopGenerating: "रोकें",
@@ -164,7 +176,7 @@ export const TRANSLATIONS: Record<string, TranslationDictionary> = {
     },
     prompts: {
       planDay: { title: "రోజు ప్రణాళిక", prompt: "ఈ రోజు నా షెడ్యూల్ మరియు ప్రాధాన్యతలను ప్లాన్ చేయడంలో సహాయం చేయండి." },
-      explain: { title: "వివరణ పొందండి", prompt: "క్వాంటం కంప్యూటింగ్‌ను ఉదాహరణలతో సులభంగా వివరించండి." },
+      explain: { title: "వివరణ పొందండి", prompt: "క్వాంటమ్ కంప్యూటింగ్‌ను ఉదాహరణలతో సులభంగా వివరించండి." },
       webSearch: { title: "తాజా వార్తలు", prompt: "ఇస్రో గురించి తాజా వార్తలు ఏమిటి?" },
       reminder: { title: "రిమైండర్ పెట్టండి", prompt: "రేపు ఉదయం 9 గంటలకు చదువుకోవాలని నాకు గుర్తు చేయండి." },
       coding: { title: "కోడింగ్ సహాయం", prompt: "రియాక్ట్ కోసం ఉపయోగకరమైన కోడ్ రాయండి." },
@@ -186,7 +198,10 @@ export const TRANSLATIONS: Record<string, TranslationDictionary> = {
     },
     actions: {
       newChat: "కొత్త సంభాషణ",
-      autoPlay: "ఆటో ప్లే",
+      autoPlay: "వాయిస్ అవుట్‌పుట్",
+      voiceActive: "వాయిస్: యాక్టివ్",
+      voiceInactive: "వాయిస్: ఇన్యాక్టివ్",
+      voiceLabel: "వాయిస్ ప్రతిస్పందన విధానం",
       preferences: "ప్రాధాన్యతలు",
       memoryHub: "మెమరీ హబ్",
       stopGenerating: "ఆపు",
@@ -225,7 +240,10 @@ export const TRANSLATIONS: Record<string, TranslationDictionary> = {
     },
     actions: {
       newChat: "புதிய உரையாடல்",
-      autoPlay: "தானியங்கி இயக்கம்",
+      autoPlay: "குரல் வெளியீடு",
+      voiceActive: "குரல்: ஆக்டிவ்",
+      voiceInactive: "குரல்: இன்ஆக்டிவ்",
+      voiceLabel: "குரல் பதில் முறை",
       preferences: "விருப்பத்தேர்வுகள்",
       memoryHub: "நினைவக மையம்",
       stopGenerating: "நிறுத்து",
@@ -264,7 +282,10 @@ export const TRANSLATIONS: Record<string, TranslationDictionary> = {
     },
     actions: {
       newChat: "नवीन चॅट",
-      autoPlay: "ऑटो-प्ले",
+      autoPlay: "आवाज आऊटपुट",
+      voiceActive: "आवाज: सक्रिय",
+      voiceInactive: "आवाज: निष्क्रिय",
+      voiceLabel: "आवाज प्रतिसाद मोड",
       preferences: "पसंती",
       memoryHub: "मेमरी हब",
       stopGenerating: "थांबवा",
