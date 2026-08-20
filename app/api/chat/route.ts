@@ -8,6 +8,7 @@ import { generateConversationTitle } from "@/utils/title-generator";
 import { rateLimiter } from "@/lib/security/rate-limiter";
 import { chatRequestSchema } from "@/lib/security/input-validator";
 import { formatSafeErrorResponse } from "@/lib/security/error-sanitizer";
+import { detectLanguage } from "@/lib/i18n/detector";
 import type { AIMessage } from "@/types/ai.types";
 
 export const runtime = "nodejs";
@@ -247,7 +248,7 @@ export async function POST(request: NextRequest) {
       metadata: lastUserMessage.metadata || {},
     });
 
-    // 6. Fetch User Settings (Memory, Response Style, Language)
+    // 6. Automatic Language Detection & User Settings
     const { data: userSettings } = await (supabase.from("user_settings") as any)
       .select("memory_enabled, response_style, language")
       .eq("user_id", user.id)
@@ -255,24 +256,29 @@ export async function POST(request: NextRequest) {
 
     const isMemoryEnabled = userSettings?.memory_enabled ?? true;
     const responseStyle = userSettings?.response_style || "conversational";
-    const targetLanguage = userSettings?.language || "en";
+
+    // Automatic Language Matching: detect user input language dynamically
+    const detection = detectLanguage(lastUserMessage.content, userSettings?.language || "en");
+    const matchedLanguage = detection.language;
+    const matchedSpeechCode = detection.speechCode;
 
     const contextMessages: AIMessage[] = messages.slice(-AI_CONFIG.maxHistoryMessages);
 
     // Build personalization system instruction
     const personalizationInstructions: string[] = [];
 
-    // Language constraint
+    // Language constraint matching SAME LANGUAGE RULE
     const languageDirectives: Record<string, string> = {
-      kn: "CRITICAL: You must answer natively and entirely in Kannada (ಕನ್ನಡ). Provide clean, natural Kannada suitable for spoken voice output.",
-      hi: "CRITICAL: You must answer natively and entirely in Hindi (हिन्दी). Provide clean, natural Hindi suitable for spoken voice output.",
-      te: "CRITICAL: You must answer natively and entirely in Telugu (తెలుగు). Provide clean, natural Telugu suitable for spoken voice output.",
-      ta: "CRITICAL: You must answer natively and entirely in Tamil (தமிழ்). Provide clean, natural Tamil suitable for spoken voice output.",
-      mr: "CRITICAL: You must answer natively and entirely in Marathi (मराठी). Provide clean, natural Marathi suitable for spoken voice output.",
+      kn: "CRITICAL: The user's message is in Kannada. You MUST answer natively and entirely in Kannada (ಕನ್ನಡ). Provide clean, natural Kannada suitable for voice speech synthesis. Preserve technical terms naturally.",
+      hi: "CRITICAL: The user's message is in Hindi. You MUST answer natively and entirely in Hindi (हिन्दी). Provide clean, natural Hindi suitable for voice speech synthesis. Preserve technical terms naturally.",
+      te: "CRITICAL: The user's message is in Telugu. You MUST answer natively and entirely in Telugu (తెలుగు). Provide clean, natural Telugu suitable for voice speech synthesis. Preserve technical terms naturally.",
+      ta: "CRITICAL: The user's message is in Tamil. You MUST answer natively and entirely in Tamil (தமிழ்). Provide clean, natural Tamil suitable for voice speech synthesis. Preserve technical terms naturally.",
+      mr: "CRITICAL: The user's message is in Marathi. You MUST answer natively and entirely in Marathi (मराठी). Provide clean, natural Marathi suitable for voice speech synthesis. Preserve technical terms naturally.",
+      en: "CRITICAL: The user's message is in English. You MUST answer natively and entirely in English.",
     };
 
-    if (languageDirectives[targetLanguage]) {
-      personalizationInstructions.push(languageDirectives[targetLanguage]);
+    if (languageDirectives[matchedLanguage]) {
+      personalizationInstructions.push(languageDirectives[matchedLanguage]);
     }
 
     // Response style constraint
@@ -390,7 +396,8 @@ export async function POST(request: NextRequest) {
                 provider: aiProvider.name,
                 tool_executed: executedToolName,
                 memory_enabled: isMemoryEnabled,
-                language: targetLanguage,
+                language: matchedLanguage,
+                speech_code: matchedSpeechCode,
                 response_style: responseStyle,
               },
             });
@@ -412,6 +419,8 @@ export async function POST(request: NextRequest) {
         "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache, no-transform",
         "X-Conversation-Id": conversationId || "",
+        "X-Detected-Language": matchedLanguage,
+        "X-Speech-Code": matchedSpeechCode,
         "X-RateLimit-Remaining": String(rateLimit.remaining),
         ...(executedToolName ? { "X-Tool-Name": executedToolName } : {}),
       },

@@ -8,6 +8,8 @@ export interface TTSVoice {
 
 export interface TTSOptions {
   voice?: string;
+  language?: string; // 'en', 'kn', 'hi', 'te', 'ta', 'mr'
+  speechCode?: string; // 'en-US', 'kn-IN', 'hi-IN', etc.
   rate?: number; // 0.5 to 2.0
   pitch?: number; // 0.5 to 1.5
   volume?: number; // 0 to 1.0

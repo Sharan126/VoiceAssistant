@@ -12,7 +12,7 @@ import { extractMemoryFromText } from "../lib/memory/extractor";
 import { formatMemoriesForPrompt } from "../lib/memory/retriever";
 import { rateLimiter } from "../lib/security/rate-limiter";
 import { chatRequestSchema, sanitizeInputText } from "../lib/security/input-validator";
-import { getTranslations, getLanguageConfig, LANGUAGE_LIST } from "../lib/i18n";
+import { getTranslations, getLanguageConfig, LANGUAGE_LIST, detectLanguage } from "../lib/i18n";
 import { generateConversationTitle } from "../utils/title-generator";
 import { groupConversationsByDate } from "../utils/date-grouping";
 import type { Conversation, Memory } from "../types/database.types";
@@ -141,6 +141,31 @@ async function runTestSuite() {
 
   const marathiConfig = getLanguageConfig("mr");
   assert(marathiConfig.speechCode === "mr-IN", "Marathi BCP-47 speech code is mr-IN");
+
+  // Automatic Language Detection Unit Tests
+  const detKn = detectLanguage("ನಾಳೆ ಬೆಳಿಗ್ಗೆ 9 ಗಂಟೆಗೆ ನನಗೆ ಓದಲು ನೆನಪಿಸು.");
+  assert(detKn.language === "kn" && detKn.speechCode === "kn-IN", "Auto-detects Kannada script: kn-IN");
+
+  const detHi = detectLanguage("कल सुबह 9 बजे मुझे पढ़ाई करने की याद दिलाना।");
+  assert(detHi.language === "hi" && detHi.speechCode === "hi-IN", "Auto-detects Hindi script: hi-IN");
+
+  const detTe = detectLanguage("రేపు ఉదయం 9 గంటలకు చదువుకోవాలని నాకు గుర్తు చేయి.");
+  assert(detTe.language === "te" && detTe.speechCode === "te-IN", "Auto-detects Telugu script: te-IN");
+
+  const detTa = detectLanguage("நாளை காலை 9 மணிக்கு படிக்க நினைவூட்டுங்கள்.");
+  assert(detTa.language === "ta" && detTa.speechCode === "ta-IN", "Auto-detects Tamil script: ta-IN");
+
+  const detMr = detectLanguage("उद्या सकाळी ९ वाजता मला अभ्यासाची आठवण करून दे.");
+  assert(detMr.language === "mr" && detMr.speechCode === "mr-IN", "Auto-detects Marathi script: mr-IN");
+
+  const detEn = detectLanguage("Remind me to study algorithms tomorrow at 9 AM.");
+  assert(detEn.language === "en" && detEn.speechCode === "en-US", "Auto-detects English script: en-US");
+
+  const detMixed = detectLanguage("ನಾಳೆ ನನಗೆ study ಮಾಡಲು reminder ಇಡು.");
+  assert(detMixed.language === "kn", "Resolves mixed input with Kannada primary script to Kannada");
+
+  const detOverride = detectLanguage("ಕನ್ನಡದಲ್ಲಿ ಉತ್ತರಿಸಿ.");
+  assert(detOverride.language === "kn" && detOverride.isExplicitRequest, "Detects explicit Kannada request directive");
 
   // -------------------------------------------------------------
   // 7. CONVERSATION MANAGEMENT: Titles & Date Grouping

@@ -3,6 +3,7 @@ import { TRANSLATIONS, type TranslationDictionary } from "./translations";
 
 export * from "./languages";
 export * from "./translations";
+export * from "./detector";
 
 /**
  * Get localized translation dictionary for a language code (with English fallback)

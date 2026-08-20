@@ -108,15 +108,40 @@ export class WebSpeechTTSProvider implements TextToSpeechProvider {
         utterance.pitch = options.pitch ?? 1.0;
         utterance.volume = options.volume ?? 1.0;
 
-        // Select specified voice if available
-        if (options.voice) {
-          const availableVoices = window.speechSynthesis.getVoices();
-          const selectedVoice = availableVoices.find(
+        // Select specified voice or automatically match voice to target language
+        const availableVoices = window.speechSynthesis.getVoices();
+        let selectedVoice: SpeechSynthesisVoice | undefined;
+
+        // 1. If explicit voice name specified, look up exact voice
+        if (options.voice && options.voice !== "default") {
+          selectedVoice = availableVoices.find(
             (v) => v.name === options.voice || v.voiceURI === options.voice
           );
-          if (selectedVoice) {
-            utterance.voice = selectedVoice;
+        }
+
+        // 2. Automatically match voice by speechCode or language code
+        if (!selectedVoice && (options.speechCode || options.language)) {
+          const targetCode = (options.speechCode || options.language || "").toLowerCase();
+          const langPrefix = targetCode.split("-")[0]?.toLowerCase() || targetCode;
+
+          // Exact BCP-47 match (e.g. kn-IN, hi-IN, te-IN, ta-IN, mr-IN, en-US)
+          selectedVoice = availableVoices.find(
+            (v) => v.lang && v.lang.toLowerCase() === targetCode
+          );
+
+          // Language prefix match (e.g. kn, hi, te, ta, mr, en)
+          if (!selectedVoice) {
+            selectedVoice = availableVoices.find(
+              (v) => v.lang && v.lang.toLowerCase().startsWith(langPrefix)
+            );
           }
+        }
+
+        if (selectedVoice) {
+          utterance.voice = selectedVoice;
+          utterance.lang = selectedVoice.lang;
+        } else if (options.speechCode) {
+          utterance.lang = options.speechCode;
         }
 
         utterance.onstart = () => {

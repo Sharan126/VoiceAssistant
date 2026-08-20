@@ -5,7 +5,7 @@ import { useVoiceInput } from "@/hooks/use-voice-input";
 import { useAIConversation } from "@/hooks/use-ai-conversation";
 import { useTextToSpeech } from "@/hooks/use-text-to-speech";
 import { settingsService } from "@/services/settings-service";
-import { getLanguageConfig } from "@/lib/i18n";
+import { getLanguageConfig, detectLanguage } from "@/lib/i18n";
 import type { VoiceState } from "@/types/voice.types";
 import type { UserSettings } from "@/types/database.types";
 import { toast } from "sonner";
@@ -107,7 +107,19 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
     });
   }, [userId]);
 
-  const activeLanguage = userSettings?.language || "en";
+  const defaultLanguage = userSettings?.language || "en";
+  const [matchedLanguage, setMatchedLanguage] = useReducer(
+    (_: string, next: string) => next,
+    defaultLanguage
+  );
+
+  useEffect(() => {
+    if (userSettings?.language) {
+      setMatchedLanguage(userSettings.language);
+    }
+  }, [userSettings?.language]);
+
+  const activeLanguage = matchedLanguage;
   const speechCode = getLanguageConfig(activeLanguage).speechCode;
 
   // Request deduplication guard to prevent duplicate dispatches
@@ -157,7 +169,7 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
     },
   });
 
-  // 3. Send Message Function (Deduplicated)
+  // 3. Send Message Function (Deduplicated with Auto-Language Matching)
   const handleSendMessage = useCallback(
     async (text: string) => {
       const trimmed = text.trim();
@@ -165,6 +177,12 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
 
       isDispatchingRef.current = true;
       dispatch({ type: "SET_LAST_QUERY", query: trimmed });
+
+      // Automatic Language Matching: detect user input language dynamically
+      const detection = detectLanguage(trimmed, activeLanguage);
+      if (detection.language !== matchedLanguage) {
+        setMatchedLanguage(detection.language);
+      }
 
       // Immediate zero-latency interruption of any active speech
       interruptTTS();
@@ -176,7 +194,7 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
         isDispatchingRef.current = false;
       }
     },
-    [interruptTTS, sendAIMessage, isStreaming]
+    [interruptTTS, sendAIMessage, isStreaming, activeLanguage, matchedLanguage]
   );
 
   // 4. Speech-to-Text Microphone Hook with Language Code
@@ -205,18 +223,21 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
     }
   }, [sttState, sttError]);
 
-  // Watch for completed AI assistant messages to trigger TTS narration
+  // Watch for completed AI assistant messages to trigger TTS narration with matching voice
   useEffect(() => {
     if (messages.length > 0 && !isStreaming && autoPlay) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.role === "assistant") {
+        const detection = detectLanguage(lastMsg.content, matchedLanguage);
         speakText(lastMsg.content, {
           voice: userSettings?.voice,
           rate: userSettings?.speaking_speed ?? 1.0,
+          language: detection.language,
+          speechCode: detection.speechCode,
         });
       }
     }
-  }, [messages, isStreaming, autoPlay, speakText, userSettings]);
+  }, [messages, isStreaming, autoPlay, speakText, userSettings, matchedLanguage]);
 
   /**
    * Unified Microphone Toggle Handler with Guaranteed Interruption

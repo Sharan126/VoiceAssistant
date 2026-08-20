@@ -16,7 +16,7 @@ import { DatabaseTester } from "@/components/dashboard/database-tester";
 import { useVoicePipeline } from "@/hooks/use-voice-pipeline";
 import { getTranslations } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
-import { Database, Settings, X, Plus, Volume2, VolumeX, Brain, Square } from "lucide-react";
+import { Database, Settings, X, Volume2, VolumeX, Brain } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/types/database.types";
 import type { VoiceState } from "@/types/voice.types";
@@ -54,7 +54,6 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
     interruptTTS,
     stopGeneration,
     loadConversation,
-    clearMessages,
     retry,
   } = useVoicePipeline({ userId: user.id });
 
@@ -96,11 +95,6 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
   const handleSelectConversation = (id: string | null) => {
     interruptTTS();
     loadConversation(id);
-  };
-
-  const handleNewChat = () => {
-    interruptTTS();
-    clearMessages();
   };
 
   const hasMessages = messages.length > 0 || Boolean(isStreaming && currentStreamingText);
@@ -231,102 +225,6 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
         ) : (
           /* Active Conversation Thread View */
           <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
-            {/* Compact Top Voice Status Bar */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-2.5 border-b border-border/40 bg-card/30 backdrop-blur-md shrink-0">
-              <div className="flex items-center space-x-3">
-                <button
-                  type="button"
-                  onClick={handleOrbClick}
-                  className="relative group cursor-pointer focus:outline-none"
-                  aria-label="Toggle voice input or interrupt"
-                >
-                  <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20 group-hover:scale-105 transition-transform">
-                    <VoiceOrb
-                      state={currentVoiceState}
-                      audioLevel={audioLevel}
-                      className="scale-[0.25] pointer-events-none"
-                    />
-                  </div>
-                </button>
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                    Aura Voice Stream
-                    {currentVoiceState === "speaking" && (
-                      <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono animate-pulse">
-                        Speaking
-                      </span>
-                    )}
-                    {currentVoiceState === "tool_execution" && (
-                      <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[10px] font-mono animate-ping">
-                        Tool Active
-                      </span>
-                    )}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground capitalize">
-                    {interimTranscript
-                      ? `"${interimTranscript}"`
-                      : currentVoiceState === "speaking"
-                      ? "Assistant speaking"
-                      : currentVoiceState === "tool_execution"
-                      ? activeTool ? `Executing ${activeTool}...` : "Checking tools..."
-                      : currentVoiceState.replace("_", " ")}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {currentVoiceState === "speaking" && (
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={stopTTS}
-                    className="h-8 px-3 text-xs gap-1.5 font-bold shadow bg-red-600 hover:bg-red-700 text-white rounded-lg transition-transform active:scale-95"
-                    aria-label="Stop speaking"
-                  >
-                    <Square className="h-3 w-3 fill-current" />
-                    <span>Stop speaking</span>
-                  </Button>
-                )}
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setActiveModal("memories")}
-                  className="h-8 px-2 text-xs gap-1.5 border border-purple-500/30 text-purple-400 bg-purple-500/10 hover:bg-purple-500/20"
-                  aria-label="Open Memories"
-                >
-                  <Brain className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">{t.actions.memoryHub}</span>
-                </Button>
-
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setAutoPlay(!autoPlay)}
-                  title={autoPlay ? "Switch Voice Output to Inactive" : "Switch Voice Output to Active"}
-                  className={`h-8 px-2.5 text-xs gap-1.5 border transition-all ${
-                    autoPlay
-                      ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20"
-                      : "text-amber-400 bg-amber-500/10 border-amber-500/30 hover:bg-amber-500/20"
-                  }`}
-                  aria-label="Toggle voice active state"
-                >
-                  {autoPlay ? <Volume2 className="h-3.5 w-3.5 text-emerald-400" /> : <VolumeX className="h-3.5 w-3.5 text-amber-400" />}
-                  <span className="hidden sm:inline font-medium">{autoPlay ? t.actions.voiceActive : t.actions.voiceInactive}</span>
-                </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleNewChat}
-                  className="h-8 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  <span>{t.actions.newChat}</span>
-                </Button>
-              </div>
-            </div>
-
             {/* Scrollable Chat History & Real-time Stream */}
             <ConversationView
               messages={messages}
