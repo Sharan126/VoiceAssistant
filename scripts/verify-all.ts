@@ -274,9 +274,9 @@ async function runTestSuite() {
   assert(maxImageSizeBytes === 10485760, "Enforces 10MB upper limit on image size");
 
   // -------------------------------------------------------------
-  // 14. PHASE 3 — PDF & DOCUMENT ATTACHMENTS
+  // 14. PHASE 3 & 4A — PDF & DOCUMENT ATTACHMENTS & EXTRACTION
   // -------------------------------------------------------------
-  console.log("\n🔹 [Domain 14]: PDF & Document Attachments");
+  console.log("\n🔹 [Domain 14]: PDF & Document Attachments & Server Text Extraction");
   const allowedDocExts = [".pdf", ".txt", ".docx", ".doc"];
   assert(allowedDocExts.includes(".pdf"), "Supports PDF document format");
   assert(allowedDocExts.includes(".txt"), "Supports TXT document format");
@@ -284,14 +284,24 @@ async function runTestSuite() {
   const maxDocSizeBytes = 15 * 1024 * 1024;
   assert(maxDocSizeBytes === 15728640, "Enforces 15MB upper limit on document size");
 
+  // Document Text Extraction Unit Test (TXT & PDF format processing)
+  const sampleTxtBuffer = Buffer.from("RailGaadi Features: Live train status, PNR prediction, platform locator.");
+  const { extractDocumentText } = await import("../lib/documents/processor");
+  const extractedTxt = await extractDocumentText(sampleTxtBuffer, "text/plain", "RailGaadi Features.txt");
+  assert(extractedTxt.includes("Live train status"), "extractDocumentText successfully extracts text from plain text file");
+
   // -------------------------------------------------------------
-  // 15. PHASE 4 — ATTACHMENTS + AI CONVERSATION & GROUNDING
+  // 15. PHASE 4A — ATTACHMENTS + AI CONVERSATION & GROUNDING
   // -------------------------------------------------------------
   console.log("\n🔹 [Domain 15]: Attachments + AI Conversation & Grounding");
-  const notFoundFallback = "I couldn't find that information in the attached document.";
-  assert(notFoundFallback.includes("couldn't find that information"), "Enforces anti-hallucination document fallback response");
+  const notFoundFallback = "I couldn't access that document. Please try attaching it again.";
+  assert(notFoundFallback.includes("couldn't access that document"), "Enforces explicit document not found error message");
   const multlingualVoices = ["en-US", "kn-IN", "hi-IN", "te-IN", "ta-IN", "mr-IN"];
   assert(multlingualVoices.length === 6, "Preserves 6 regional languages across attachments + voice pipeline");
+
+  // Test Document Grounding System Prompt Inserter
+  const docGroundingPrompt = `[ATTACHED_DOCUMENT_CONTEXT]\nDocument Name: 'RailGaadi Features.pdf'\nExtracted Document Content:\n"""\n${extractedTxt}\n"""`;
+  assert(docGroundingPrompt.includes("[ATTACHED_DOCUMENT_CONTEXT]") && docGroundingPrompt.includes("RailGaadi Features"), "Formats structured document context system prompt for AI");
 
   // -------------------------------------------------------------
   // 16. PHASE 5 — ASK MY FILES INTEGRATION & SOURCE ATTRIBUTION

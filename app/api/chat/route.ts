@@ -297,9 +297,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Attachment Context Injection (Image or Document)
-    if (lastUserMessage.metadata?.attachment) {
-      const att = lastUserMessage.metadata.attachment;
+    // Attachment Context Injection (Image or Document) with Follow-up Inheritance & Security Verification
+    let activeAttachment: any = null;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msgAtt = messages[i]?.metadata?.attachment;
+      if (msgAtt) {
+        activeAttachment = msgAtt;
+        break;
+      }
+    }
+
+    if (activeAttachment) {
+      const att = activeAttachment;
       const isDoc =
         att.kind === "document" ||
         att.type?.includes("pdf") ||
@@ -308,34 +317,70 @@ export async function POST(request: NextRequest) {
         att.name?.match(/\.(pdf|txt|docx)$/i);
 
       if (isDoc) {
-        let docSnippet = "";
-        if (att.dataUrl && att.dataUrl.startsWith("data:")) {
+        let extractedText = att.extractedText || "";
+
+        // Server-Side DB Retrieval & User Ownership Verification if extractedText not in payload metadata
+        if (!extractedText && (att.documentId || att.id)) {
+          const docIdToFind = att.documentId || att.id;
           try {
-            const base64Data = att.dataUrl.split(",")[1];
-            if (base64Data) {
-              const decoded = Buffer.from(base64Data, "base64").toString("utf-8");
-              docSnippet = decoded.slice(0, 3000);
+            const { data: dbDoc } = await (supabase.from("user_files") as any)
+              .select("extracted_text, user_id")
+              .eq("id", docIdToFind)
+              .eq("user_id", user.id)
+              .maybeSingle();
+
+            if (dbDoc && dbDoc.extracted_text) {
+              extractedText = dbDoc.extracted_text;
             }
-          } catch (_e) {
-            // Silently fallback if binary decoding is unparseable
+          } catch (_dbErr) {
+            // Silently fallback if table doesn't exist
           }
         }
 
-        const docContext = `[ATTACHED_DOCUMENT_CONTEXT]
+        if (!extractedText && att.dataUrl && att.dataUrl.startsWith("data:text")) {
+          try {
+            const base64Data = att.dataUrl.split(",")[1];
+            if (base64Data) {
+              extractedText = Buffer.from(base64Data, "base64").toString("utf-8");
+            }
+          } catch (_e) {
+            // Ignore decoding failure
+          }
+        }
+
+        if (extractedText && extractedText.trim()) {
+          const docContext = `[ATTACHED_DOCUMENT_CONTEXT]
 Document Name: '${att.name}'
 Document Type: ${att.type || "Document"}
 Document Size: ${att.size || 0} bytes
-${docSnippet ? `Extracted Document Content:\n"""\n${docSnippet}\n"""` : ""}
+
+Extracted Document Content:
+"""
+${extractedText.slice(0, 15000)}
+"""
 
 CRITICAL GROUNDING & ANTI-HALLUCINATION RULES:
-1. Answer the user's question strictly based on the attached document content.
+1. Answer the user's question strictly based on the attached document content above.
 2. If the user asks for specific information that is not present or supported by the attached document, state clearly: "I couldn't find that information in the attached document."
-3. Do not invent, hallucinate, or fabricate facts outside of the provided document content.`;
+3. Do not invent, hallucinate, or fabricate facts outside of the provided document content.
+4. Do NOT falsely ask the user to upload the PDF or document, because the document is ALREADY attached and provided above.`;
 
-        contextMessages.unshift({
-          role: "system",
-          content: docContext,
-        });
+          contextMessages.unshift({
+            role: "system",
+            content: docContext,
+          });
+        } else {
+          // Explicit Document Not Found Fallback Handling
+          contextMessages.unshift({
+            role: "system",
+            content: `[DOCUMENT_NOT_FOUND]
+Document Reference: '${att.name}'
+Status: Document text could not be extracted or accessed.
+
+CRITICAL DIRECTIVE:
+Inform the user politely: "I couldn't access that document. Please try attaching it again." Do not claim the document doesn't exist or pretend to know its contents.`,
+          });
+        }
       } else {
         contextMessages.unshift({
           role: "system",

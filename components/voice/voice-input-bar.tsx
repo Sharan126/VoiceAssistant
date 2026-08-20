@@ -31,14 +31,18 @@ import { toast } from "sonner";
 
 export interface AttachedFile {
   id: string;
-  file: File;
+  documentId?: string;
+  file?: File;
   kind: "image" | "document";
   name: string;
   size: number;
   type: string;
+  status: "UPLOADING" | "PROCESSING" | "READY" | "ERROR";
+  extractedText?: string;
   previewUrl?: string;
   dataUrl?: string;
   iconType: "image" | "pdf" | "doc" | "file";
+  errorMessage?: string;
 }
 
 interface VoiceInputBarProps {
@@ -112,6 +116,7 @@ export function VoiceInputBar({
         name: file.name,
         size: file.size,
         type: file.type,
+        status: "READY",
         previewUrl,
         dataUrl,
         iconType: "image",
@@ -124,7 +129,7 @@ export function VoiceInputBar({
     reader.readAsDataURL(file);
   };
 
-  const handleDocumentSelect = (
+  const handleDocumentSelect = async (
     e: React.ChangeEvent<HTMLInputElement>,
     iconType: "pdf" | "doc" | "file"
   ) => {
@@ -151,16 +156,76 @@ export function VoiceInputBar({
       return;
     }
 
+    const tempId = `doc-${Date.now()}`;
+    // 1. Immediately set status to PROCESSING
     setAttachedFile({
-      id: `doc-${Date.now()}`,
+      id: tempId,
       file,
       kind: "document",
       name: file.name,
       size: file.size,
       type: file.type || "application/pdf",
+      status: "PROCESSING",
       iconType,
     });
-    toast.success(`Attached ${file.name}`);
+    toast.info(`Preparing ${file.name}...`);
+
+    // 2. Upload and extract text via shared /api/files endpoint
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/files", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (data.success && data.file) {
+        setAttachedFile({
+          id: tempId,
+          documentId: data.file.id,
+          file,
+          kind: "document",
+          name: file.name,
+          size: file.size,
+          type: file.type || "application/pdf",
+          status: "READY",
+          extractedText: data.file.extractedText,
+          iconType,
+        });
+        toast.success(`${file.name} is ready`);
+      } else {
+        const errorMsg = data.error || "Failed to process document";
+        setAttachedFile({
+          id: tempId,
+          file,
+          kind: "document",
+          name: file.name,
+          size: file.size,
+          type: file.type || "application/pdf",
+          status: "ERROR",
+          iconType,
+          errorMessage: errorMsg,
+        });
+        toast.error(errorMsg);
+      }
+    } catch (_err) {
+      const errorMsg = "I couldn't process that document. Please try uploading it again.";
+      setAttachedFile({
+        id: tempId,
+        file,
+        kind: "document",
+        name: file.name,
+        size: file.size,
+        type: file.type || "application/pdf",
+        status: "ERROR",
+        iconType,
+        errorMessage: errorMsg,
+      });
+      toast.error(errorMsg);
+    }
   };
 
   const handleGeneralFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -182,12 +247,22 @@ export function VoiceInputBar({
   };
 
   const handleSendInternal = () => {
+    if (attachedFile && attachedFile.status === "PROCESSING") {
+      toast.info(`Please wait, ${attachedFile.name} is still processing...`);
+      return;
+    }
+
+    if (attachedFile && attachedFile.status === "ERROR") {
+      toast.error(attachedFile.errorMessage || "I couldn't access that document. Please try attaching it again.");
+      return;
+    }
+
     const textToSend =
       value.trim() ||
       (attachedFile
         ? attachedFile.kind === "image"
           ? "What is in this image?"
-          : `Please analyze ${attachedFile.name}.`
+          : `Please summarize ${attachedFile.name}.`
         : "");
 
     if (!textToSend && !attachedFile) return;
@@ -197,10 +272,13 @@ export function VoiceInputBar({
       metadata = {
         attachment: {
           id: attachedFile.id,
+          documentId: attachedFile.documentId,
           kind: attachedFile.kind,
           name: attachedFile.name,
           size: attachedFile.size,
           type: attachedFile.type,
+          status: attachedFile.status,
+          extractedText: attachedFile.extractedText,
           previewUrl: attachedFile.previewUrl,
           dataUrl: attachedFile.dataUrl,
         },
@@ -244,6 +322,7 @@ export function VoiceInputBar({
           name: file.name || "pasted-image.png",
           size: file.size,
           type: file.type,
+          status: "READY",
           previewUrl,
           dataUrl,
           iconType: "image",
@@ -308,7 +387,15 @@ export function VoiceInputBar({
         
         {/* 1. ATTACHED IMAGE OR DOCUMENT COMPACT PREVIEW BANNER */}
         {attachedFile && (
-          <div className="flex items-center justify-between px-3.5 py-2 bg-indigo-500/15 border-b border-indigo-500/30 text-xs text-indigo-200 rounded-t-2xl animate-in fade-in slide-in-from-top-1 duration-150">
+          <div
+            className={`flex items-center justify-between px-3.5 py-2 border-b text-xs rounded-t-2xl animate-in fade-in slide-in-from-top-1 duration-150 ${
+              attachedFile.status === "PROCESSING"
+                ? "bg-amber-500/15 border-amber-500/30 text-amber-200"
+                : attachedFile.status === "ERROR"
+                ? "bg-destructive/15 border-destructive/30 text-destructive-foreground"
+                : "bg-indigo-500/15 border-indigo-500/30 text-indigo-200"
+            }`}
+          >
             <div className="flex items-center gap-2.5 overflow-hidden">
               {attachedFile.kind === "image" && attachedFile.previewUrl ? (
                 <img
@@ -318,7 +405,9 @@ export function VoiceInputBar({
                 />
               ) : (
                 <div className="h-8 w-8 rounded-lg bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shrink-0 shadow-sm">
-                  {attachedFile.iconType === "pdf" ? (
+                  {attachedFile.status === "PROCESSING" ? (
+                    <Loader2 className="h-4 w-4 text-amber-300 animate-spin" />
+                  ) : attachedFile.iconType === "pdf" ? (
                     <FileText className="h-4 w-4 text-cyan-300" />
                   ) : (
                     <FileCode className="h-4 w-4 text-purple-300" />
@@ -327,10 +416,16 @@ export function VoiceInputBar({
               )}
               <div className="flex flex-col overflow-hidden">
                 <span className="font-semibold text-slate-100 truncate max-w-[150px] sm:max-w-[260px]">
-                  {attachedFile.name}
+                  {attachedFile.status === "PROCESSING"
+                    ? `Preparing ${attachedFile.name}...`
+                    : attachedFile.name}
                 </span>
                 <span className="text-[10px] text-indigo-300/80">
-                  {(attachedFile.size / 1024).toFixed(0)} KB • {attachedFile.kind === "image" ? "IMAGE" : attachedFile.name.split(".").pop()?.toUpperCase() || "DOC"}
+                  {attachedFile.status === "PROCESSING"
+                    ? "Extracting document text..."
+                    : attachedFile.status === "READY"
+                    ? `${attachedFile.name} is ready • ${(attachedFile.size / 1024).toFixed(0)} KB`
+                    : `Error: ${attachedFile.errorMessage || "Processing failed"}`}
                 </span>
               </div>
             </div>
