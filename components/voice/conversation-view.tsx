@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -5,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { getInitials } from "@/utils/formatters";
-import { Bot, Copy, Check, Square, Volume2, VolumeX } from "lucide-react";
+import { Bot, Copy, Check, Square, Volume2, VolumeX, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextRenderer } from "@/components/ai/rich-text-renderer";
 import type { AIMessage } from "@/types/ai.types";
@@ -114,6 +115,46 @@ export function ConversationView({
                       : "bg-card/90 border border-border/70 text-foreground rounded-tl-sm shadow-sm backdrop-blur-md w-full"
                   }`}
                 >
+                  {/* Attachment Preview Card (Image or Document) */}
+                  {msg.metadata?.attachment && (
+                    msg.metadata.attachment.kind === "document" ||
+                    msg.metadata.attachment.type?.includes("pdf") ||
+                    msg.metadata.attachment.name?.match(/\.(pdf|txt|docx)$/i) ? (
+                      <div className="mb-2.5 flex items-center gap-3 p-2.5 rounded-xl border border-cyan-400/40 bg-slate-950/90 max-w-xs shadow-md">
+                        <div className="h-9 w-9 rounded-lg bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shrink-0">
+                          <FileText className="h-5 w-5 text-cyan-300" />
+                        </div>
+                        <div className="flex flex-col min-w-0 flex-1">
+                          <span className="text-xs font-semibold text-slate-100 truncate">
+                            📄 {msg.metadata.attachment.name}
+                          </span>
+                          <span className="text-[10px] text-cyan-400 font-mono">
+                            {msg.metadata.attachment.size
+                              ? `${(msg.metadata.attachment.size / 1024).toFixed(0)} KB`
+                              : "DOCUMENT"}{" "}
+                            • {msg.metadata.attachment.name?.split(".").pop()?.toUpperCase() || "DOCUMENT"}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mb-2.5 overflow-hidden rounded-xl border border-indigo-400/40 bg-slate-950/80 shadow-md">
+                        <img
+                          src={msg.metadata.attachment.previewUrl || msg.metadata.attachment.dataUrl}
+                          alt={msg.metadata.attachment.name || "Attached image"}
+                          className="max-h-48 w-full object-cover"
+                        />
+                        <div className="px-2.5 py-1 text-[11px] text-slate-300 flex items-center justify-between border-t border-slate-800">
+                          <span className="truncate font-medium">📷 {msg.metadata.attachment.name}</span>
+                          {msg.metadata.attachment.size && (
+                            <span className="text-slate-400 text-[10px] ml-2 shrink-0">
+                              {(msg.metadata.attachment.size / 1024).toFixed(0)} KB
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  )}
+
                   {isUser ? msg.content : <RichTextRenderer content={msg.content} />}
                 </div>
 

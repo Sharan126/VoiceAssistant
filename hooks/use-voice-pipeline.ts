@@ -185,7 +185,7 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
 
   // 3. Send Message Function (Deduplicated with Auto-Language Matching)
   const handleSendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, metadata?: Record<string, any>) => {
       const trimmed = text.trim();
       if (!trimmed || isDispatchingRef.current || isStreaming) return;
 
@@ -203,7 +203,7 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
       dispatch({ type: "SET_STATE", state: "thinking" });
 
       try {
-        await sendAIMessage(trimmed);
+        await sendAIMessage(trimmed, undefined, metadata);
       } finally {
         isDispatchingRef.current = false;
       }

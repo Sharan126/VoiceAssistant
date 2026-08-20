@@ -297,6 +297,59 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Attachment Context Injection (Image or Document)
+    if (lastUserMessage.metadata?.attachment) {
+      const att = lastUserMessage.metadata.attachment;
+      const isDoc =
+        att.kind === "document" ||
+        att.type?.includes("pdf") ||
+        att.type?.includes("text") ||
+        att.type?.includes("word") ||
+        att.name?.match(/\.(pdf|txt|docx)$/i);
+
+      if (isDoc) {
+        let docSnippet = "";
+        if (att.dataUrl && att.dataUrl.startsWith("data:")) {
+          try {
+            const base64Data = att.dataUrl.split(",")[1];
+            if (base64Data) {
+              const decoded = Buffer.from(base64Data, "base64").toString("utf-8");
+              docSnippet = decoded.slice(0, 3000);
+            }
+          } catch (_e) {
+            // Silently fallback if binary decoding is unparseable
+          }
+        }
+
+        const docContext = `[ATTACHED_DOCUMENT_CONTEXT]
+Document Name: '${att.name}'
+Document Type: ${att.type || "Document"}
+Document Size: ${att.size || 0} bytes
+${docSnippet ? `Extracted Document Content:\n"""\n${docSnippet}\n"""` : ""}
+
+CRITICAL GROUNDING & ANTI-HALLUCINATION RULES:
+1. Answer the user's question strictly based on the attached document content.
+2. If the user asks for specific information that is not present or supported by the attached document, state clearly: "I couldn't find that information in the attached document."
+3. Do not invent, hallucinate, or fabricate facts outside of the provided document content.`;
+
+        contextMessages.unshift({
+          role: "system",
+          content: docContext,
+        });
+      } else {
+        contextMessages.unshift({
+          role: "system",
+          content: `[ATTACHED_IMAGE_CONTEXT]
+Image Name: '${att.name}'
+Image Format: ${att.type || "image/png"}
+Image Size: ${att.size || 0} bytes
+
+CRITICAL INSTRUCTIONS:
+Analyze the visual aspect and user query regarding this attached image. Provide a detailed, clean, and direct answer.`,
+        });
+      }
+    }
+
     // Retrieve and inject relevant long-term memories if enabled
     if (isMemoryEnabled) {
       const relevantMemories = await getRelevantMemories(

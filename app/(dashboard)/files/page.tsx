@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArrowLeft, FileText, Upload, Trash2, HardDrive } from "lucide-react";
+import { ArrowLeft, FileText, Upload, Trash2, HardDrive, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 interface UserFile {
@@ -15,6 +16,7 @@ interface UserFile {
 }
 
 export default function FilesPage() {
+  const router = useRouter();
   const [files, setFiles] = useState<UserFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -58,6 +60,11 @@ export default function FilesPage() {
   const handleDelete = (id: string, name: string) => {
     setFiles((prev) => prev.filter((f) => f.id !== id));
     toast.success(`Deleted ${name}`);
+  };
+
+  const handleAskAura = (file: UserFile) => {
+    toast.info(`Starting conversation on ${file.name}`);
+    router.push(`/app?docName=${encodeURIComponent(file.name)}&docSize=${file.size}`);
   };
 
   const formatFileSize = (bytes: number) => {
@@ -145,15 +152,29 @@ export default function FilesPage() {
                   </div>
                 </div>
 
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleDelete(file.id, file.name)}
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0"
-                  aria-label="Delete document"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleAskAura(file)}
+                    className="h-8 px-2.5 text-xs gap-1.5 text-indigo-400 hover:text-indigo-300 hover:bg-indigo-500/10 rounded-lg"
+                    aria-label="Ask Aura about this document"
+                    title="Ask Aura about this document"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" />
+                    <span>Ask Aura</span>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(file.id, file.name)}
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg shrink-0"
+                    aria-label="Delete document"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

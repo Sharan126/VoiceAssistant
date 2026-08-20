@@ -61,7 +61,7 @@ export function useAIConversation(options: UseAIConversationOptions = {}) {
    * Send a message to the AI conversation stream
    */
   const sendMessage = useCallback(
-    async (text: string, customConvId?: string | null) => {
+    async (text: string, customConvId?: string | null, metadata?: Record<string, any>) => {
       const trimmed = text.trim();
       if (!trimmed || isStreaming) return;
 
@@ -74,6 +74,7 @@ export function useAIConversation(options: UseAIConversationOptions = {}) {
         role: "user",
         content: trimmed,
         created_at: new Date().toISOString(),
+        metadata: metadata || undefined,
       };
 
       const updatedHistory = [...messages, userMessage];
