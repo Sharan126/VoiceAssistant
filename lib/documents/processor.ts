@@ -1,5 +1,6 @@
 /* eslint-disable */
-const pdfParse = require("pdf-parse");
+const pdfParseModule = require("pdf-parse");
+const pdfParse = typeof pdfParseModule === "function" ? pdfParseModule : pdfParseModule.default || pdfParseModule;
 
 export type DocumentProcessingStatus = "UPLOADING" | "PROCESSING" | "READY" | "ERROR";
 
@@ -28,11 +29,39 @@ export async function extractDocumentText(
   // 1. PDF File Extraction via pdf-parse
   if (mimeType.includes("pdf") || lowerName.endsWith(".pdf")) {
     try {
-      const pdfData = await pdfParse(buffer);
-      const cleaned = (pdfData.text || "")
-        .replace(/\r\n/g, "\n")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
+      let cleaned = "";
+      if (typeof pdfParse === "function") {
+        const pdfData = await pdfParse(buffer);
+        cleaned = (pdfData.text || "")
+          .replace(/\r\n/g, "\n")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim();
+      }
+
+      if (!cleaned) {
+        // Raw PDF stream text fallback (extracting text between (text) Tj or TJ blocks)
+        const rawString = buffer.toString("binary");
+        const matches = rawString.match(/\(([^)]+)\)\s*Tj/g) || rawString.match(/\[([^\]]+)\]\s*TJ/gi);
+        if (matches && matches.length > 0) {
+          cleaned = matches
+            .map((m) => m.replace(/[\(\)\[\]]/g, "").replace(/\s*TJ/gi, "").replace(/\s*Tj/gi, ""))
+            .join(" ")
+            .replace(/\s{2,}/g, " ")
+            .trim();
+        }
+      }
+
+      if (!cleaned) {
+        // Fallback printable strings extraction from PDF stream
+        const rawString = buffer.toString("utf-8");
+        const printable = rawString
+          .replace(/[^\x20-\x7E\n\t]/g, " ")
+          .replace(/\s{2,}/g, " ")
+          .trim();
+        if (printable.length > 30) {
+          cleaned = printable;
+        }
+      }
 
       if (!cleaned) {
         throw new Error("Extracted PDF content is empty or unreadable text.");
