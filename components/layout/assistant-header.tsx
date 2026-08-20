@@ -5,7 +5,7 @@ import { UserNav } from "@/components/layout/user-nav";
 import { LanguageSelector } from "@/components/layout/language-selector";
 import { Button } from "@/components/ui/button";
 import { APP_CONFIG } from "@/lib/constants";
-import { Mic, Menu, Sliders } from "lucide-react";
+import { Mic, Menu, Sliders, HardDrive } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/types/database.types";
 import type { VoiceState } from "@/types/voice.types";
@@ -81,6 +81,17 @@ export function AssistantHeader({
             onSelectLanguage={onSelectLanguage}
           />
         )}
+
+        <Link href="/files">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 h-9"
+          >
+            <HardDrive className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Ask My Files</span>
+          </Button>
+        </Link>
 
         {onOpenSettingsModal && (
           <Button

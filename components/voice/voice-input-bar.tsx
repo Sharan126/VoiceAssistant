@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Mic, Square, Send, Loader2, Volume2, Sparkles } from "lucide-react";
+import { Mic, Square, Send, Loader2, Volume2, Sparkles, MessageSquare } from "lucide-react";
 import type { VoiceState } from "@/types/voice.types";
 
 interface VoiceInputBarProps {
@@ -13,6 +13,8 @@ interface VoiceInputBarProps {
   onToggleMic: () => void;
   onStopSpeaking?: () => void;
   voiceState: VoiceState;
+  conversationMode?: boolean;
+  onToggleConversationMode?: () => void;
   disabled?: boolean;
 }
 
@@ -24,6 +26,8 @@ export function VoiceInputBar({
   onToggleMic,
   onStopSpeaking,
   voiceState,
+  conversationMode = false,
+  onToggleConversationMode,
   disabled = false,
 }: VoiceInputBarProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -184,14 +188,33 @@ export function VoiceInputBar({
           </Button>
         </div>
 
-        {/* Footer shortcuts hint */}
-        <div className="flex items-center justify-between px-4 pb-2 text-[11px] text-muted-foreground select-none">
-          <span className="hidden sm:inline-flex items-center gap-1">
-            <kbd className="px-1.5 py-0.5 rounded bg-muted/60 text-[10px] font-mono border border-border">Enter</kbd> to send, <kbd className="px-1.5 py-0.5 rounded bg-muted/60 text-[10px] font-mono border border-border">Shift+Enter</kbd> for newline
-          </span>
-          <span className="sm:hidden">
-            {isSpeaking ? "Tap Stop speaking to quiet Aura" : "Tap mic to speak"}
-          </span>
+        {/* Footer shortcuts hint & Conversation Mode Toggle */}
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 pb-2 text-[11px] text-muted-foreground select-none">
+          <div className="flex items-center gap-2">
+            {onToggleConversationMode && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onToggleConversationMode}
+                className={`h-6 px-2 text-[10px] sm:text-xs gap-1 rounded-lg border transition-all ${
+                  conversationMode
+                    ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40 font-semibold"
+                    : "bg-muted/40 text-muted-foreground border-border/60 hover:text-foreground"
+                }`}
+                title="Continuous Mode: Aura automatically listens for your next turn after responding"
+              >
+                <MessageSquare className="h-3 w-3" />
+                <span>Conversation Mode: {conversationMode ? "ON" : "OFF"}</span>
+                {conversationMode && <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping" />}
+              </Button>
+            )}
+
+            <span className="hidden md:inline-flex items-center gap-1">
+              <kbd className="px-1.5 py-0.5 rounded bg-muted/60 text-[10px] font-mono border border-border">Enter</kbd> to send
+            </span>
+          </div>
+
           <span className="flex items-center gap-1 text-[10px] text-indigo-400">
             <Sparkles className="h-3 w-3" /> Voice & Text Input Active
           </span>

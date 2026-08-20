@@ -17,6 +17,7 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState<boolean>(true);
+  const errorResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const onCompleteRef = useRef(options.onTranscriptComplete);
   onCompleteRef.current = options.onTranscriptComplete;
@@ -25,20 +26,35 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
     setIsSupported(sttService.isSupported());
 
     return () => {
-      // Ensure complete cleanup on unmount
+      if (errorResetTimeoutRef.current) {
+        clearTimeout(errorResetTimeoutRef.current);
+      }
       sttService.abort();
     };
   }, []);
 
+  const scheduleErrorAutoReset = useCallback(() => {
+    if (errorResetTimeoutRef.current) {
+      clearTimeout(errorResetTimeoutRef.current);
+    }
+    errorResetTimeoutRef.current = setTimeout(() => {
+      setSttState((curr) => (curr === "error" ? "idle" : curr));
+    }, 3500);
+  }, []);
+
   const startListening = useCallback(async () => {
+    if (errorResetTimeoutRef.current) {
+      clearTimeout(errorResetTimeoutRef.current);
+    }
     setErrorMessage(null);
     setInterimTranscript("");
     setFinalTranscript("");
 
     if (!sttService.isSupported()) {
       setSttState("error");
-      setErrorMessage("Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.");
-      toast.error("Speech recognition is not supported in this browser.");
+      setErrorMessage("Voice input isn't supported in this browser. Try Chrome or use text input.");
+      toast.error("Voice input isn't supported in this browser.");
+      scheduleErrorAutoReset();
       return;
     }
 
@@ -51,6 +67,9 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
           setSttState(state);
           if (state === "idle" || state === "error" || state === "success") {
             setAudioLevel(0);
+          }
+          if (state === "error") {
+            scheduleErrorAutoReset();
           }
         },
         onInterimTranscript: (text) => {
@@ -68,24 +87,52 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
           setAudioLevel(level);
         },
         onError: (err: STTError) => {
-          setErrorMessage(err.message);
+          let userMessage = "Could not record voice input. Please try again.";
+
+          switch (err.code) {
+            case "not-allowed":
+              userMessage = "Microphone access is blocked. Please allow microphone access in Chrome settings.";
+              break;
+            case "audio-capture":
+              userMessage = "Couldn't access the microphone. Tap to try again.";
+              break;
+            case "no-speech":
+              userMessage = "I couldn't hear you. Please try again.";
+              break;
+            case "not-supported":
+              userMessage = "Voice input isn't supported in this browser. Try Chrome or use text input.";
+              break;
+            case "network":
+              userMessage = "Network connection error during speech recognition. Tap to try again.";
+              break;
+            default:
+              userMessage = err.message || userMessage;
+          }
+
+          setErrorMessage(userMessage);
           setSttState("error");
           setAudioLevel(0);
+          scheduleErrorAutoReset();
+
           if (err.code === "not-allowed") {
-            toast.error("Microphone permission denied. Please allow mic access.");
+            toast.error(userMessage);
           } else if (err.code !== "no-speech") {
-            toast.error(err.message);
+            toast.error(userMessage);
           }
         },
       });
     } catch (err: any) {
       setSttState("error");
-      setErrorMessage(err.message || "Failed to access microphone.");
+      setErrorMessage(err.message || "Couldn't access the microphone. Tap to try again.");
       setAudioLevel(0);
+      scheduleErrorAutoReset();
     }
-  }, [options.language]);
+  }, [options.language, scheduleErrorAutoReset]);
 
   const stopListening = useCallback(async () => {
+    if (errorResetTimeoutRef.current) {
+      clearTimeout(errorResetTimeoutRef.current);
+    }
     setAudioLevel(0);
     await sttService.stop();
     setSttState("idle");
@@ -100,6 +147,9 @@ export function useVoiceInput(options: UseVoiceInputOptions = {}) {
   }, [sttState, startListening, stopListening]);
 
   const reset = useCallback(() => {
+    if (errorResetTimeoutRef.current) {
+      clearTimeout(errorResetTimeoutRef.current);
+    }
     sttService.abort();
     setSttState("idle");
     setInterimTranscript("");

@@ -125,6 +125,13 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
   // Request deduplication guard to prevent duplicate dispatches
   const isDispatchingRef = useRef(false);
 
+  // Phase 2: Continuous Conversation Mode State
+  const [conversationMode, setConversationMode] = useReducer((_: boolean, next: boolean) => next, false);
+  const conversationModeRef = useRef(conversationMode);
+  conversationModeRef.current = conversationMode;
+
+  const autoListenTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // 1. Text-to-Speech Hook
   const {
     isSpeaking: isTTSSpeaking,
@@ -142,6 +149,13 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
     },
     onEnd: () => {
       dispatch({ type: "SET_STATE", state: "idle" });
+      // Phase 2 Continuous Conversation: Auto re-listen for next user turn if enabled
+      if (conversationModeRef.current) {
+        if (autoListenTimeoutRef.current) clearTimeout(autoListenTimeoutRef.current);
+        autoListenTimeoutRef.current = setTimeout(() => {
+          rawStartListening();
+        }, 450);
+      }
     },
     onError: (err) => {
       console.warn("TTS Error:", err);
@@ -203,6 +217,7 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
     interimTranscript,
     audioLevel,
     errorMessage: sttError,
+    startListening: rawStartListening,
     toggleListening: rawToggleListening,
     stopListening: rawStopListening,
   } = useVoiceInput({
@@ -214,14 +229,16 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
     },
   });
 
-  // Sync STT states
+  // Sync STT states cleanly
   useEffect(() => {
-    if (sttState === "listening" || sttState === "requesting_permission") {
+    if (sttState === "listening" || sttState === "requesting_permission" || sttState === "processing") {
       dispatch({ type: "SET_STATE", state: sttState });
     } else if (sttState === "error" && sttError) {
       dispatch({ type: "SET_ERROR", error: sttError });
+    } else if (sttState === "idle" && !isStreaming && !isTTSSpeaking) {
+      dispatch({ type: "SET_STATE", state: "idle" });
     }
-  }, [sttState, sttError]);
+  }, [sttState, sttError, isStreaming, isTTSSpeaking]);
 
   // Watch for completed AI assistant messages to trigger TTS narration with matching voice
   useEffect(() => {
@@ -240,14 +257,15 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
   }, [messages, isStreaming, autoPlay, speakText, userSettings, matchedLanguage]);
 
   /**
-   * Unified Microphone Toggle Handler with Guaranteed Interruption
+   * Unified Microphone Toggle Handler with Guaranteed Interruption & Audio Release
    */
   const toggleMicrophone = useCallback(async () => {
-    // If currently speaking, interrupt TTS immediately and start microphone listening
+    // If currently speaking, interrupt TTS immediately, cancel speechSynthesis, and release audio channel
     if (isTTSSpeaking) {
       interruptTTS();
+      await new Promise((resolve) => setTimeout(resolve, 80));
     }
-    // If currently streaming, cancel stream
+    // If currently streaming AI response, cancel stream
     if (isStreaming) {
       cancelAIStream();
     }
@@ -290,9 +308,20 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
    * Explicitly stop TTS and reset pipeline state back to idle
    */
   const handleStopTTS = useCallback(() => {
+    if (autoListenTimeoutRef.current) clearTimeout(autoListenTimeoutRef.current);
     stopTTS();
     dispatch({ type: "SET_STATE", state: "idle" });
   }, [stopTTS]);
+
+  const toggleConversationMode = useCallback(() => {
+    setConversationMode(!conversationMode);
+    if (!conversationMode) {
+      toast.success("Conversation Mode ON: Hands-free automatic turn-taking enabled.");
+    } else {
+      if (autoListenTimeoutRef.current) clearTimeout(autoListenTimeoutRef.current);
+      toast.info("Conversation Mode OFF: Reverted to manual push-to-talk.");
+    }
+  }, [conversationMode]);
 
   return {
     voiceState: pipelineState.voiceState,
@@ -306,6 +335,9 @@ export function useVoicePipeline({ userId }: UseVoicePipelineOptions) {
     audioLevel,
     autoPlay,
     setAutoPlay,
+    conversationMode,
+    setConversationMode,
+    toggleConversationMode,
     language: activeLanguage,
     setLanguage: handleSetLanguage,
     setUserSettings,

@@ -3,6 +3,7 @@ import type {
   STTOptions,
   STTError,
 } from "@/types/voice.types";
+import { MediaRecorderSTTProvider } from "./media-recorder-stt-provider";
 
 /**
  * Web Speech API implementation for in-browser speech recognition.
@@ -15,7 +16,9 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private animFrameId: number | null = null;
-  private isListening = false;
+  private isListeningInternal = false;
+  private isStartingInternal = false;
+  private visibilityHandler: (() => void) | null = null;
 
   public isSupported(): boolean {
     if (typeof window === "undefined") return false;
@@ -29,43 +32,23 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
     if (!this.isSupported()) {
       options.onError?.({
         code: "not-supported",
-        message: "Speech recognition is not supported in this browser. Please use Chrome, Edge, or Safari.",
+        message: "Speech recognition is not supported in this browser.",
       });
       return;
     }
 
-    // Stop any existing session before starting a new one
+    // Prevent concurrent start calls
+    if (this.isStartingInternal || this.isListeningInternal) {
+      return;
+    }
+
     await this.cleanup();
+    this.isStartingInternal = true;
 
     try {
       options.onStateChange?.("requesting_permission");
 
-      // 1. Request microphone access and setup AudioContext for live volume analysis
-      if (typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
-        try {
-          this.mediaStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-          });
-          this.setupAudioAnalysis(this.mediaStream, options.onAudioLevel);
-        } catch (permErr: any) {
-          if (permErr.name === "NotAllowedError" || permErr.name === "PermissionDeniedError") {
-            options.onError?.({
-              code: "not-allowed",
-              message: "Microphone permission was denied. Please allow microphone access in your browser settings.",
-            });
-            options.onStateChange?.("error");
-            await this.cleanup();
-            return;
-          }
-          console.warn("Could not setup audio analyzer, proceeding with recognition only:", permErr);
-        }
-      }
-
-      // 2. Initialize Browser Speech Recognition
+      // Initialize Browser Speech Recognition
       const SpeechRecognitionConstructor =
         (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
@@ -76,8 +59,30 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
       this.recognition.maxAlternatives = 1;
 
       this.recognition.onstart = () => {
-        this.isListening = true;
+        this.isStartingInternal = false;
+        this.isListeningInternal = true;
         options.onStateChange?.("listening");
+
+        // Bind visibility change listener to pause/abort on tab switch
+        this.bindVisibilityListener(options);
+
+        // Optionally setup audio volume analyser AFTER recognition confirmed started
+        if (options.onAudioLevel && typeof navigator !== "undefined" && navigator.mediaDevices?.getUserMedia) {
+          // Asynchronously attempt volume meter without blocking recognition
+          navigator.mediaDevices
+            .getUserMedia({ audio: true })
+            .then((stream) => {
+              if (this.isListeningInternal) {
+                this.mediaStream = stream;
+                this.setupAudioAnalysis(stream, options.onAudioLevel);
+              } else {
+                stream.getTracks().forEach((t) => t.stop());
+              }
+            })
+            .catch(() => {
+              // Ignore audio analyzer permission error if recognition already running
+            });
+        }
       };
 
       this.recognition.onresult = (event: any) => {
@@ -85,8 +90,8 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
         let finalTranscript = "";
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcriptPiece = event.results[i][0].transcript;
-          if (event.results[i].isFinal) {
+          const transcriptPiece = event.results[i]?.[0]?.transcript || "";
+          if (event.results[i]?.isFinal) {
             finalTranscript += transcriptPiece;
           } else {
             interimTranscript += transcriptPiece;
@@ -104,6 +109,9 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
       };
 
       this.recognition.onerror = (event: any) => {
+        this.isStartingInternal = false;
+        this.isListeningInternal = false;
+
         let code: STTError["code"] = "unknown";
         let message = "An error occurred during speech recognition.";
 
@@ -111,23 +119,23 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
           case "not-allowed":
           case "service-not-allowed":
             code = "not-allowed";
-            message = "Microphone access was denied. Please enable microphone permissions in your browser.";
+            message = "Microphone access was denied. Please allow microphone access in browser settings.";
             break;
           case "no-speech":
             code = "no-speech";
-            message = "Couldn't understand that. No speech detected, please try again.";
+            message = "No speech was detected. Please tap to try again.";
             break;
           case "audio-capture":
             code = "audio-capture";
-            message = "No microphone was found or audio capture failed.";
+            message = "Microphone capture failed or hardware is busy.";
             break;
           case "network":
             code = "network";
-            message = "Network communication error during speech recognition.";
+            message = "Network error occurred during speech recognition.";
             break;
           case "aborted":
             code = "aborted";
-            message = "Speech recognition was aborted.";
+            message = "Speech recognition was stopped.";
             break;
           default:
             message = event.message || `Speech recognition error: ${event.error}`;
@@ -137,15 +145,19 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
           options.onError?.({ code, message });
           options.onStateChange?.("error");
         }
+        this.cleanup();
       };
 
       this.recognition.onend = () => {
-        this.isListening = false;
+        this.isStartingInternal = false;
+        this.isListeningInternal = false;
         this.cleanup();
       };
 
       this.recognition.start();
     } catch (err: any) {
+      this.isStartingInternal = false;
+      this.isListeningInternal = false;
       await this.cleanup();
       options.onError?.({
         code: "unknown",
@@ -156,7 +168,7 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
   }
 
   public async stop(): Promise<void> {
-    if (this.recognition && this.isListening) {
+    if (this.recognition && this.isListeningInternal) {
       try {
         this.recognition.stop();
       } catch {
@@ -177,9 +189,26 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
     this.cleanup();
   }
 
-  /**
-   * Set up Web Audio API AnalyserNode to calculate real-time volume levels
-   */
+  private bindVisibilityListener(options: STTOptions): void {
+    if (typeof document === "undefined") return;
+    this.unbindVisibilityListener();
+
+    this.visibilityHandler = () => {
+      if (document.hidden && this.isListeningInternal) {
+        this.abort();
+        options.onStateChange?.("idle");
+      }
+    };
+    document.addEventListener("visibilitychange", this.visibilityHandler);
+  }
+
+  private unbindVisibilityListener(): void {
+    if (typeof document !== "undefined" && this.visibilityHandler) {
+      document.removeEventListener("visibilitychange", this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
+  }
+
   private setupAudioAnalysis(
     stream: MediaStream,
     onAudioLevel?: (level: number) => void
@@ -212,11 +241,9 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
         }
 
         const average = sum / bufferLength;
-        // Normalize roughly between 0 and 100
         const normalized = Math.min(100, Math.round((average / 128) * 100));
 
         onAudioLevel(normalized);
-
         this.animFrameId = requestAnimationFrame(updateLevel);
       };
 
@@ -226,19 +253,16 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
     }
   }
 
-  /**
-   * Properly release all audio streams, context, and animation loops
-   */
   private async cleanup(): Promise<void> {
-    this.isListening = false;
+    this.isListeningInternal = false;
+    this.isStartingInternal = false;
+    this.unbindVisibilityListener();
 
-    // 1. Cancel audio analysis frame loop
     if (this.animFrameId !== null) {
       cancelAnimationFrame(this.animFrameId);
       this.animFrameId = null;
     }
 
-    // 2. Close AudioContext
     if (this.audioContext && this.audioContext.state !== "closed") {
       try {
         await this.audioContext.close();
@@ -249,7 +273,6 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
     }
     this.analyser = null;
 
-    // 3. Stop ALL media tracks in the MediaStream
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((track) => {
         try {
@@ -266,42 +289,84 @@ export class WebSpeechSTTProvider implements SpeechToTextProvider {
 }
 
 /**
- * Singleton speech-to-text service manager allowing interchangeable STT providers.
+ * Singleton speech-to-text service manager with automatic MediaRecorder fallback.
  */
 class SpeechToTextManager {
-  private provider: SpeechToTextProvider;
+  private primaryProvider: SpeechToTextProvider;
+  private fallbackProvider: SpeechToTextProvider;
+  private activeProvider: SpeechToTextProvider;
 
   constructor() {
-    // Default to browser native Web Speech API provider
-    this.provider = new WebSpeechSTTProvider();
+    this.primaryProvider = new WebSpeechSTTProvider();
+    this.fallbackProvider = new MediaRecorderSTTProvider();
+    this.activeProvider = this.primaryProvider.isSupported()
+      ? this.primaryProvider
+      : this.fallbackProvider;
   }
 
-  /**
-   * Set or switch to an alternate STT provider (e.g. Server-side Whisper / Cloud STT)
-   */
   public setProvider(newProvider: SpeechToTextProvider) {
-    this.provider.abort();
-    this.provider = newProvider;
+    this.activeProvider.abort();
+    this.activeProvider = newProvider;
   }
 
   public getProvider(): SpeechToTextProvider {
-    return this.provider;
+    return this.activeProvider;
   }
 
   public isSupported(): boolean {
-    return this.provider.isSupported();
+    return this.primaryProvider.isSupported() || this.fallbackProvider.isSupported();
   }
 
   public async start(options: STTOptions): Promise<void> {
-    return this.provider.start(options);
+    // Wrap onError to trigger automatic fallback if Web Speech fails on mobile Chrome
+    const wrappedOptions: STTOptions = {
+      ...options,
+      onError: async (err: STTError) => {
+        // If primary provider fails with hardware/browser error, try MediaRecorder fallback
+        if (
+          this.activeProvider === this.primaryProvider &&
+          this.fallbackProvider.isSupported() &&
+          (err.code === "audio-capture" ||
+            err.code === "not-supported" ||
+            (err.code as string) === "service-not-allowed" ||
+            err.code === "network")
+        ) {
+          console.warn("Switching STT to MediaRecorder fallback due to primary STT error:", err);
+          this.activeProvider = this.fallbackProvider;
+          try {
+            await this.fallbackProvider.start(options);
+            return;
+          } catch (fallbackErr) {
+            console.error("STT fallback provider also failed:", fallbackErr);
+          }
+        }
+
+        options.onError?.(err);
+      },
+    };
+
+    try {
+      await this.activeProvider.start(wrappedOptions);
+    } catch (startErr: any) {
+      if (
+        this.activeProvider === this.primaryProvider &&
+        this.fallbackProvider.isSupported()
+      ) {
+        console.warn("Primary STT start threw exception, executing MediaRecorder fallback...");
+        this.activeProvider = this.fallbackProvider;
+        await this.fallbackProvider.start(options);
+      } else {
+        throw startErr;
+      }
+    }
   }
 
   public async stop(): Promise<void> {
-    return this.provider.stop();
+    return this.activeProvider.stop();
   }
 
   public abort(): void {
-    this.provider.abort();
+    this.activeProvider.abort();
   }
 }
 

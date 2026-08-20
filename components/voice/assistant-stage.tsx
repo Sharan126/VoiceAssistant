@@ -5,7 +5,6 @@ import { VoiceOrb } from "@/components/voice/voice-orb";
 import { VoiceStatusBadge } from "@/components/voice/voice-status-badge";
 import { SuggestedPrompts } from "@/components/voice/suggested-prompts";
 import { VoiceInputBar } from "@/components/voice/voice-input-bar";
-import { VoiceStateControls } from "@/components/voice/voice-state-controls";
 import { ConversationSidebar } from "@/components/sidebar/conversation-sidebar";
 import { MobileSidebarDrawer } from "@/components/sidebar/mobile-sidebar-drawer";
 import { AssistantHeader } from "@/components/layout/assistant-header";
@@ -19,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Database, Settings, X, Volume2, VolumeX, Brain } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import type { Profile } from "@/types/database.types";
-import type { VoiceState } from "@/types/voice.types";
 
 interface AssistantStageProps {
   user: User;
@@ -28,13 +26,12 @@ interface AssistantStageProps {
 
 export function AssistantStage({ user, profile }: AssistantStageProps) {
   const [inputText, setInputText] = useState<string>("");
-  const [previewOverride, setPreviewOverride] = useState<VoiceState | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [activeModal, setActiveModal] = useState<"settings" | "memories" | "database" | null>(null);
 
   // Unified Deterministic Voice Pipeline Hook
   const {
-    voiceState: realVoiceState,
+    voiceState: currentVoiceState,
     activeTool,
     errorMessage,
     messages,
@@ -45,6 +42,8 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
     audioLevel,
     autoPlay,
     setAutoPlay,
+    conversationMode,
+    toggleConversationMode,
     language,
     setLanguage,
     setUserSettings,
@@ -57,7 +56,6 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
     retry,
   } = useVoicePipeline({ userId: user.id });
 
-  const currentVoiceState: VoiceState = previewOverride ?? realVoiceState;
   const t = getTranslations(language);
 
   // Dynamic time-based localized greeting
@@ -78,13 +76,11 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
     const messageContent = text ?? inputText;
     if (!messageContent.trim()) return;
 
-    if (previewOverride) setPreviewOverride(null);
     setInputText("");
     sendMessage(messageContent);
   };
 
   const handleOrbClick = () => {
-    if (previewOverride) setPreviewOverride(null);
     toggleMicrophone();
   };
 
@@ -192,11 +188,6 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
                   <span>{t.actions.memoryHub}</span>
                 </Button>
               </div>
-
-              <VoiceStateControls
-                currentState={currentVoiceState}
-                onStateChange={(state) => setPreviewOverride(state)}
-              />
             </div>
 
             {/* Localized Suggested Query Prompts */}
@@ -218,6 +209,8 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
                 onToggleMic={handleOrbClick}
                 onStopSpeaking={stopTTS}
                 voiceState={currentVoiceState}
+                conversationMode={conversationMode}
+                onToggleConversationMode={toggleConversationMode}
                 disabled={isStreaming}
               />
             </div>
@@ -248,6 +241,8 @@ export function AssistantStage({ user, profile }: AssistantStageProps) {
                 onToggleMic={handleOrbClick}
                 onStopSpeaking={stopTTS}
                 voiceState={currentVoiceState}
+                conversationMode={conversationMode}
+                onToggleConversationMode={toggleConversationMode}
                 disabled={isStreaming}
               />
             </div>

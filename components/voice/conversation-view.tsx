@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { getInitials } from "@/utils/formatters";
 import { Bot, Copy, Check, Square, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
+import { RichTextRenderer } from "@/components/ai/rich-text-renderer";
 import type { AIMessage } from "@/types/ai.types";
 import type { Profile } from "@/types/database.types";
 import type { User } from "@supabase/supabase-js";
@@ -105,15 +106,15 @@ export function ConversationView({
               )}
 
               {/* Message Bubble Container */}
-              <div className={`flex flex-col space-y-1 max-w-[85%] sm:max-w-[80%] ${isUser ? "items-end" : "items-start"}`}>
+              <div className={`flex flex-col space-y-1 max-w-[88%] sm:max-w-[82%] ${isUser ? "items-end" : "items-start"}`}>
                 <div
-                  className={`p-3.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                  className={`p-3.5 sm:p-4 rounded-2xl text-sm sm:text-base leading-relaxed ${
                     isUser
-                      ? "bg-primary text-primary-foreground rounded-tr-sm shadow-md"
-                      : "bg-card/90 border border-border/70 text-foreground rounded-tl-sm shadow-sm backdrop-blur-md"
+                      ? "bg-primary text-primary-foreground rounded-tr-sm shadow-md whitespace-pre-wrap break-words"
+                      : "bg-card/90 border border-border/70 text-foreground rounded-tl-sm shadow-sm backdrop-blur-md w-full"
                   }`}
                 >
-                  {msg.content}
+                  {isUser ? msg.content : <RichTextRenderer content={msg.content} />}
                 </div>
 
                 {/* Bubble action toolbar (Copy / Play Speech / Info) */}
@@ -172,9 +173,9 @@ export function ConversationView({
               <Bot className="h-4 w-4" />
             </div>
 
-            <div className="flex flex-col space-y-2 max-w-[85%] sm:max-w-[80%] items-start">
-              <div className="p-3.5 rounded-2xl rounded-tl-sm text-sm leading-relaxed whitespace-pre-wrap break-words bg-card/90 border border-indigo-500/40 text-foreground shadow-sm backdrop-blur-md">
-                {currentStreamingText}
+            <div className="flex flex-col space-y-2 max-w-[88%] sm:max-w-[82%] items-start w-full">
+              <div className="p-3.5 sm:p-4 rounded-2xl rounded-tl-sm text-sm sm:text-base leading-relaxed bg-card/90 border border-indigo-500/40 text-foreground shadow-sm backdrop-blur-md w-full">
+                <RichTextRenderer content={currentStreamingText} isStreaming={true} />
                 <span className="inline-block w-1.5 h-4 ml-1 align-middle bg-primary animate-pulse" />
               </div>
 
